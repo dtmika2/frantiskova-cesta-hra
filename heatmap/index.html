@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Kudy chodí figurky – Františkova cesta</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Plocha jako noční mapa vlevo, ovládání v lepivém sloupci vpravo; na telefonu pod sebou. */
+:root {
+  --bg: #13151b;
+  --panel: #1b1e26;
+  --line: #2c303b;
+  --fg: #ebe7df;
+  --muted: #9da2ad;
+  --accent: #f5a453;
+  --font-display: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Atkinson Hyperlegible', 'Segoe UI', system-ui, sans-serif;
+  --font-data: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); background: var(--bg); }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.5 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+}
+a { color: var(--accent); }
+.wrap { max-width: 1140px; margin: 0 auto; display: grid; gap: 20px; }
+.back { font-size: 0.88rem; text-decoration: none; }
+.back:hover { text-decoration: underline; }
+header h1 {
+  font: 700 clamp(1.6rem, 3.6vw, 2.4rem)/1.1 var(--font-display);
+  margin: 6px 0 6px;
+  text-wrap: balance;
+  letter-spacing: -0.01em;
+}
+header p { margin: 0; color: var(--muted); max-width: 68ch; }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 24px; align-items: start; }
+@media (max-width: 860px) { .layout { grid-template-columns: minmax(0, 1fr); } .side { position: static !important; } }
+.board { position: relative; width: 100%; max-width: 760px; aspect-ratio: 1190.55 / 1746.14; border-radius: 6px; overflow: hidden; background: var(--panel); border: 1px solid var(--line); }
+.board canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: pan-y; }
+.side { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); display: grid; gap: 18px; min-width: 0; }
+.group { display: grid; gap: 8px; }
+.label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button {
+  flex: 1; min-width: 0; padding: 8px 6px; border: 0; background: transparent; color: var(--muted);
+  font: 600 0.9rem/1.2 var(--font-body); cursor: pointer;
+}
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--fg); box-shadow: inset 0 -2px 0 var(--accent); }
+.seg button:focus-visible, .play:focus-visible, input[type=range]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.round { display: flex; align-items: baseline; gap: 12px; }
+.round strong { font: 700 2.4rem/1 var(--font-display); }
+.round span { color: var(--muted); font-size: 0.85rem; line-height: 1.3; }
+.scrub { display: flex; gap: 10px; align-items: center; }
+.play {
+  width: 38px; height: 38px; flex: none; border-radius: 50%; border: 1px solid var(--line);
+  background: var(--panel); color: var(--fg); cursor: pointer; font-size: 0.95rem;
+}
+input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); }
+.hist { width: 100%; height: 64px; display: block; }
+.hist-cap { display: flex; justify-content: space-between; gap: 10px; font: 0.75rem var(--font-data); color: var(--muted); }
+.legend-bar { height: 10px; border-radius: 5px; }
+.legend-ticks { display: flex; justify-content: space-between; font: 0.75rem var(--font-data); color: var(--muted); font-variant-numeric: tabular-nums; }
+.note { font-size: 0.82rem; color: var(--muted); margin: 0; }
+.top { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.top li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; font-size: 0.86rem; }
+.top li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.top li span:last-child { font-family: var(--font-data); font-variant-numeric: tabular-nums; color: var(--accent); }
+.tip {
+  position: absolute; pointer-events: none; background: rgba(19, 21, 27, 0.94); border: 1px solid var(--line);
+  border-radius: 6px; padding: 7px 9px; font-size: 0.8rem; max-width: 230px; line-height: 1.35;
+}
+.tip b { display: block; font-size: 0.85rem; }
+.tip .v { font-family: var(--font-data); color: var(--accent); }
+footer { color: var(--muted); font-size: 0.82rem; max-width: 76ch; display: grid; gap: 6px; }
+footer p { margin: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="back" href="../">← Zpět do hry</a>
+    <h1>Kudy chodí figurky</h1>
+    <p>Průměrný provoz na každém poli a cestě Františkovy cesty od prvního hodu až do konce hry. Spočítáno na skutečném herním enginu: 20 000 her pěti hráčů pro každou délku hry, s náhodnými hody i pořadím hráčů.</p>
+  </header>
+
+  <div class="layout">
+    <div class="board" id="board">
+      <canvas id="cv" aria-label="Heatmapa herní plochy"></canvas>
+      <div class="tip" id="tip" hidden></div>
+    </div>
+
+    <aside class="side">
+      <div class="group">
+        <span class="label">Délka hry</span>
+        <div class="seg" id="mode">
+          <button id="m-short" data-v="short" aria-pressed="true">Krátká procházka</button>
+          <button id="m-long" data-v="long" aria-pressed="false">Lázeňská tůra</button>
+        </div>
+      </div>
+      <div class="group">
+        <span class="label">Zobrazit</span>
+        <div class="seg" id="layer">
+          <button id="l-walk" data-v="walk" aria-pressed="true">Kudy prošly</button>
+          <button id="l-stop" data-v="stop" aria-pressed="false">Kde zastavily</button>
+        </div>
+        <div class="seg" id="view">
+          <button id="v-cum" data-v="cum" aria-pressed="true">Kola 1 až N</button>
+          <button id="v-one" data-v="one" aria-pressed="false">Jen kolo N</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="round"><strong id="r-num">23</strong><span id="r-text"></span></div>
+        <div class="scrub">
+          <button class="play" id="play" aria-label="Přehrát kola">▶</button>
+          <input type="range" id="slider" min="1" max="40" value="23" aria-label="Kolo">
+        </div>
+        <svg class="hist" id="hist" viewBox="0 0 300 64" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div class="hist-cap"><span>konce her podle kola</span><span id="avg"></span></div>
+      </div>
+
+      <div class="group">
+        <span class="label" id="legend-label"></span>
+        <div class="legend-bar" id="legend-bar"></div>
+        <div class="legend-ticks" id="legend-ticks"></div>
+      </div>
+
+      <div class="group">
+        <span class="label">Nejrušnější pole</span>
+        <ol class="top" id="top"></ol>
+      </div>
+      <p class="note">Najeďte myší nebo klepněte na pole a uvidíte jeho čísla.</p>
+    </aside>
+  </div>
+
+  <footer>
+    <p><b>Kola 1 až N</b> sečte všechno do daného kola a vydělí počtem všech her, takže hry, které už skončily, dál nic nepřidávají. V průměrném kole konce hry tak ukazuje, jak vypadá průměrná hra ve chvíli, kdy končí. <b>Jen kolo N</b> ukazuje jediné kolo, zprůměrované přes hry, které ještě běží – je vidět, jak se figurky posouvají po plánu.</p>
+    <p>Přesun do domečku památky, výlety autobusem a přechod z kolonády nejsou chůze, proto se objeví jen v zobrazení <i>Kde zastavily</i>. Barvy používají odmocninovou stupnici, aby byly vidět i málo používané cesty; stupnice se při posouvání kol nemění (v zobrazení <i>Jen kolo N</i> první kola, kdy všichni vyrážejí ze startu společně, přesahují její horní konec).</p>
+  </footer>
+</div>
+
+<script>
+const TYPE_NAME = {
+  'normal-light': 'Pole', 'normal-brown': 'Pole', fork: 'Rozcestí', yellow: 'Žluté pole', monument: 'Domeček památky',
+  stop: 'Červené pole (zastav)', 'skip-turn': 'Pole „1x neházíš“', bus: 'Autobusová zastávka', 'trip-return': 'Návrat z výletu',
+  aqua: 'Aquapark', 'lose-tokens': 'Noční podnik', jump: 'Skok', start: 'Start', finish: 'Domeček (cíl)',
+};
+// Teplotní škála: tmavě fialová → purpurová → korálová → světle zlatá.
+const STOPS = [[0, [60, 15, 110]], [0.35, [150, 40, 125]], [0.6, [225, 75, 95]], [0.82, [252, 160, 95]], [1, [252, 240, 190]]];
+function ramp(t) {
+  t = Math.max(0, Math.min(1, t));
+  for (let i = 1; i < STOPS.length; i++) {
+    if (t <= STOPS[i][0]) {
+      const [a, ca] = STOPS[i - 1], [b, cb] = STOPS[i], k = (t - a) / (b - a);
+      return ca.map((c, j) => Math.round(c + (cb[j] - c) * k));
+    }
+  }
+  return STOPS[STOPS.length - 1][1];
+}
+const fmt = (x) => (x >= 10 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toFixed(2)).replace('.', ',');
+
+fetch('data.json').then((r) => r.json()).then(start);
+
+function start(DATA) {
+  const W = DATA.meta.width, H = DATA.meta.height;
+  const nodes = DATA.nodes;
+  const nodeName = (n) => {
+    if (n.m) return `${n.type === 'yellow' ? 'Žluté pole' : 'Domeček'} ${n.m} · ${DATA.monuments[n.m]}`;
+    return `${TYPE_NAME[n.type] || 'Pole'} · ${n.id}`;
+  };
+  document.getElementById('legend-bar').style.background =
+    `linear-gradient(90deg, ${[0, 0.2, 0.4, 0.6, 0.8, 1].map((t) => `rgb(${ramp(t)}) ${t * 100}%`).join(', ')})`;
+
+  // Pro každou délku hry: součty po kolech a pevná maxima stupnice.
+  const nodeIdx = new Map(nodes.map((n, i) => [n.id, i]));
+  function prepare(d) {
+    const R = d.walk.length;
+    let shown = R;
+    while (shown > 1 && d.alive[shown - 1] < d.games * 0.005) shown--;
+    const cum = (rows) => {
+      const out = [];
+      let acc = new Float64Array(rows[0].length);
+      for (const row of rows) { acc = acc.map((v, i) => v + row[i]); out.push(acc); }
+      return out;
+    };
+    const prep = { ...d, shown, cumWalk: cum(d.walk), cumStop: cum(d.stop), cumEdge: cum(d.edgeWalk),
+      edgeIx: d.edges.map(([a, b]) => [nodeIdx.get(a), nodeIdx.get(b)]) };
+    const maxOf = (rows, div) => Math.max(...rows.slice(0, shown).map((row, r) => Math.max(...row) / div(r)));
+    // Jen kolo N: první kola (všichni vyrážejí ze startu) by stupnici přebila, proto medián maxim.
+    const medianOf = (rows, div) => {
+      const m = rows.slice(0, shown).map((row, r) => Math.max(...row) / div(r)).sort((a, b) => a - b);
+      return m[Math.floor(m.length / 2)];
+    };
+    prep.max = {
+      cum: { walk: Math.max(maxOf(prep.cumWalk, () => d.games), maxOf(prep.cumEdge, () => d.games)), stop: maxOf(prep.cumStop, () => d.games) },
+      one: { walk: Math.max(medianOf(d.walk, (r) => d.alive[r]), medianOf(d.edgeWalk, (r) => d.alive[r])), stop: medianOf(d.stop, (r) => d.alive[r]) },
+    };
+    return prep;
+  }
+  const MODES = { short: prepare(DATA.short), long: prepare(DATA.long) };
+  const state = { mode: 'short', layer: 'walk', view: 'cum', round: Math.round(MODES.short.avgEnd) };
+
+  const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+  const img = new Image();
+  img.src = 'board.webp';
+  img.onload = draw;
+
+  function values() {
+    const d = MODES[state.mode], r = state.round - 1;
+    const div = state.view === 'cum' ? d.games : Math.max(1, d.alive[r]);
+    const pick = (cumRows, rows) => (state.view === 'cum' ? cumRows[r] : rows[r]);
+    return {
+      d, div,
+      walk: pick(d.cumWalk, d.walk),
+      stop: pick(d.cumStop, d.stop),
+      edge: pick(d.cumEdge, d.edgeWalk),
+      max: d.max[state.view][state.layer],
+    };
+  }
+
+  function draw() {
+    const box = cv.getBoundingClientRect();
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = Math.round(box.width * dpr);
+    cv.height = Math.round(box.height * dpr);
+    const s = cv.width / W;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#13151b';
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    if (img.complete && img.naturalWidth) {
+      ctx.globalAlpha = 0.42;
+      ctx.drawImage(img, 0, 0, cv.width, cv.height);
+      ctx.globalAlpha = 1;
+    }
+    ctx.fillStyle = 'rgba(19, 21, 27, 0.35)';
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.setTransform(s, 0, 0, s, 0, 0);
+    ctx.lineCap = 'round';
+
+    const v = values();
+    const t = (x) => Math.sqrt(Math.max(0, x / v.div) / v.max);
+    const walkLayer = state.layer === 'walk';
+
+    // Cesty.
+    const order = v.d.edgeIx.map((_, e) => e).sort((a, b) => v.edge[a] - v.edge[b]);
+    for (const e of order) {
+      const [a, b] = v.d.edgeIx[e];
+      const na = nodes[a], nb = nodes[b];
+      const k = t(v.edge[e]);
+      if (!walkLayer) {
+        ctx.strokeStyle = 'rgba(235, 231, 223, 0.10)';
+        ctx.lineWidth = 2;
+      } else {
+        if (k < 0.02) continue;
+        const [r, g, bl] = ramp(k);
+        if (k > 0.45) {
+          ctx.strokeStyle = `rgba(${r}, ${g}, ${bl}, 0.22)`;
+          ctx.lineWidth = 6 + k * 16;
+          ctx.beginPath(); ctx.moveTo(na.x, na.y); ctx.lineTo(nb.x, nb.y); ctx.stroke();
+        }
+        ctx.strokeStyle = `rgba(${r}, ${g}, ${bl}, ${Math.min(1, 0.25 + k * 1.1)})`;
+        ctx.lineWidth = 1.6 + k * 8;
+      }
+      ctx.beginPath(); ctx.moveTo(na.x, na.y); ctx.lineTo(nb.x, nb.y); ctx.stroke();
+    }
+
+    // Pole.
+    const vals = walkLayer ? v.walk : v.stop;
+    const idx = nodes.map((_, i) => i).sort((a, b) => vals[a] - vals[b]);
+    for (const i of idx) {
+      const k = t(vals[i]);
+      if (k < 0.02) continue;
+      const n = nodes[i];
+      const [r, g, bl] = ramp(k);
+      const rad = walkLayer ? 2.5 + k * 5.5 : 3 + k * 13;
+      if (!walkLayer && k > 0.35) {
+        ctx.fillStyle = `rgba(${r}, ${g}, ${bl}, 0.2)`;
+        ctx.beginPath(); ctx.arc(n.x, n.y, rad * 1.9, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.fillStyle = `rgba(${r}, ${g}, ${bl}, ${Math.min(1, 0.35 + k)})`;
+      ctx.beginPath(); ctx.arc(n.x, n.y, rad, 0, Math.PI * 2); ctx.fill();
+    }
+    updatePanel(v);
+  }
+
+  function updatePanel(v) {
+    const d = v.d, r = state.round;
+    document.getElementById('r-num').textContent = `${r}.`;
+    const ended = 1 - d.alive[r - 1] / d.games;
+    document.getElementById('r-text').innerHTML = `kolo<br>${Math.round(ended * 100)} % her už skončilo`;
+    document.getElementById('avg').textContent = `průměr ${d.avgEnd.toFixed(1).replace('.', ',')}`;
+    const per = state.view === 'cum' ? `na hru, kola 1–${r}` : `na běžící hru, kolo ${r}`;
+    document.getElementById('legend-label').textContent = (state.layer === 'walk' ? 'Kolikrát tudy figurka prošla ' : 'Kolikrát tu figurka zastavila ') + per;
+    const ticks = [0, 0.25, 0.5, 1].map((k) => fmt(k * k * v.max));
+    document.getElementById('legend-ticks').innerHTML = ticks.map((x) => `<span>${x}</span>`).join('');
+
+    const vals = state.layer === 'walk' ? v.walk : v.stop;
+    const top = nodes.map((n, i) => [vals[i] / v.div, n]).filter(([x, n]) => x > 0 && n.type !== 'start')
+      .sort((a, b) => b[0] - a[0]).slice(0, 6);
+    document.getElementById('top').innerHTML = top.map(([x, n]) => `<li><span>${nodeName(n)}</span><span>${fmt(x)}</span></li>`).join('');
+    drawHist(d);
+  }
+
+  function drawHist(d) {
+    const svg = document.getElementById('hist');
+    const n = d.shown, bw = 300 / n, peak = Math.max(...d.ends.slice(0, n));
+    let out = '';
+    for (let i = 0; i < n; i++) {
+      const h = (d.ends[i] / peak) * 58;
+      const on = i < state.round;
+      out += `<rect x="${(i * bw + 0.5).toFixed(2)}" y="${(62 - h).toFixed(2)}" width="${Math.max(0.5, bw - 1).toFixed(2)}" height="${h.toFixed(2)}" fill="${on ? '#f5a453' : '#3a3f4c'}"/>`;
+    }
+    const ax = ((d.avgEnd - 0.5) / n) * 300;
+    out += `<line x1="${ax.toFixed(1)}" x2="${ax.toFixed(1)}" y1="0" y2="64" stroke="#ebe7df" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>`;
+    svg.innerHTML = out;
+  }
+
+  // Ovládání.
+  const slider = document.getElementById('slider');
+  function syncSlider() {
+    const d = MODES[state.mode];
+    slider.max = d.shown;
+    state.round = Math.min(state.round, d.shown);
+    slider.value = state.round;
+  }
+  function bindSeg(id, key, after) {
+    const seg = document.getElementById(id);
+    seg.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      state[key] = b.dataset.v;
+      for (const x of seg.querySelectorAll('button')) x.setAttribute('aria-pressed', String(x === b));
+      if (after) after();
+      draw();
+    });
+  }
+  bindSeg('mode', 'mode', () => { state.round = Math.round(MODES[state.mode].avgEnd); syncSlider(); });
+  bindSeg('layer', 'layer');
+  bindSeg('view', 'view');
+  slider.addEventListener('input', () => { state.round = +slider.value; draw(); });
+
+  let timer = null;
+  const playBtn = document.getElementById('play');
+  function stop() { clearInterval(timer); timer = null; playBtn.textContent = '▶'; playBtn.setAttribute('aria-label', 'Přehrát kola'); }
+  playBtn.addEventListener('click', () => {
+    if (timer) return stop();
+    if (state.round >= MODES[state.mode].shown) state.round = 1;
+    playBtn.textContent = '❚❚';
+    playBtn.setAttribute('aria-label', 'Pozastavit');
+    timer = setInterval(() => {
+      if (state.round >= MODES[state.mode].shown) return stop();
+      state.round++;
+      slider.value = state.round;
+      draw();
+    }, 320);
+  });
+
+  // Popisek pole.
+  const tip = document.getElementById('tip');
+  const boardEl = document.getElementById('board');
+  function showTip(ev) {
+    const box = cv.getBoundingClientRect();
+    const px = ((ev.clientX - box.left) / box.width) * W, py = ((ev.clientY - box.top) / box.height) * H;
+    let best = -1, bd = 16;
+    nodes.forEach((n, i) => { const dd = Math.hypot(n.x - px, n.y - py); if (dd < bd) { bd = dd; best = i; } });
+    if (best < 0) { tip.hidden = true; return; }
+    const v = values(), n = nodes[best];
+    const label = n.label && !n.m ? `<div>${n.label}</div>` : '';
+    tip.innerHTML = `<b>${nodeName(n)}</b>${label}` +
+      `<div>prošlo <span class="v">${fmt(v.walk[best] / v.div)}</span> · zastavilo <span class="v">${fmt(v.stop[best] / v.div)}</span></div>`;
+    tip.hidden = false;
+    const bx = ev.clientX - box.left, by = ev.clientY - box.top;
+    const left = Math.min(bx + 14, box.width - tip.offsetWidth - 6);
+    const top = by + 14 + tip.offsetHeight > box.height ? by - tip.offsetHeight - 10 : by + 14;
+    tip.style.left = `${Math.max(6, left)}px`;
+    tip.style.top = `${Math.max(6, top)}px`;
+  }
+  cv.addEventListener('pointermove', showTip);
+  cv.addEventListener('pointerdown', showTip);
+  cv.addEventListener('pointerleave', () => { tip.hidden = true; });
+
+  syncSlider();
+  new ResizeObserver(() => draw()).observe(boardEl);
+  draw();
+}
+</script>
+</body>
+</html>
